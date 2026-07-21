@@ -220,21 +220,24 @@ function Get-TargetInternalDisk {
     [CmdletBinding()]
     param(
         [switch]$AllowMultiple,     # per-Profil-Opt-in: bei mehreren internen Platten die größte wählen
-        [int]$MinSizeGB = 32
+        [int]$MinSizeGB = 60,
+        [int[]]$ExcludeDiskNumbers = @()   # Medium- + Abbild-Datenträger (IsBoot ist in WinPE UNzuverlässig!)
     )
-    $excludedBus = @('USB','SD','MMC','1394','Fibre Channel','iSCSI','Virtual')  # Virtual nur in echtem WinPE relevant
+    $excludedBus = @('USB','SD','MMC','1394','Fibre Channel','iSCSI','Virtual','File Backed Virtual')
     $all = @(Get-Disk | Sort-Object Number)
 
-    Write-DeployLog ("Gefundene Datenträger: {0}" -f $all.Count) -Component disk
+    Write-DeployLog ("Gefundene Datenträger: {0} (ausgeschlossen: Disk {1})" -f $all.Count, (($ExcludeDiskNumbers | Sort-Object) -join ',')) -Component disk
     foreach ($d in $all) {
         Write-DeployLog ("  Disk {0}: Bus={1} Size={2}GB Model='{3}' Boot={4} System={5}" -f `
             $d.Number, $d.BusType, [math]::Round($d.Size/1GB,0), $d.FriendlyName, $d.IsBoot, $d.IsSystem) -Component disk
     }
 
+    # IsBoot ist in WinPE kein zuverlässiger Indikator für das USB-Medium — daher wird der
+    # Datenträger von Medium + Abbild explizit per Disk-Nummer ausgeschlossen (aus Deploy-WinPE).
     $candidates = @($all | Where-Object {
         ($excludedBus -notcontains [string]$_.BusType) -and
         ($_.Size -ge ($MinSizeGB * 1GB)) -and
-        (-not $_.IsBoot)      # das gebootete WinPE-Medium ausschließen
+        ($ExcludeDiskNumbers -notcontains [int]$_.Number)
     })
 
     if ($candidates.Count -eq 0) {
@@ -273,7 +276,10 @@ function Register-DeployResumeTask {
         $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
         $who = 'SYSTEM'
     }
-    Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Force | Out-Null
+    # Ohne explizite Settings würde der Task auf Akku NICHT starten (Laptop-Deploy hängt).
+    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+        -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 6) -MultipleInstances IgnoreNew
+    Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
     Write-DeployLog "Fortsetzungs-Task '$taskName' registriert (User=$who)." -Component task
 }
 
@@ -308,8 +314,65 @@ function Unprotect-DeploySecret {
     } finally { $aes.Dispose() }
 }
 
+# ---------------------------------------------------------------------------
+# Safe-Scrub — entfernt Auto-Logon + Secrets. MUSS auch auf dem Fehlerpfad laufen
+# (§5.8), damit ein abgebrochener Deploy keine Credentials zurücklässt.
+# Best-effort: jeder Schritt einzeln gekapselt, wirft nie.
+# ---------------------------------------------------------------------------
+function Invoke-DeploySafeScrub {
+    [CmdletBinding()]
+    param([string]$LocalAdminUser)
+    $winlogon = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+    foreach ($n in @('DefaultPassword','AutoLogonCount','DefaultUserName','DefaultDomainName')) {
+        try { Remove-ItemProperty -Path $winlogon -Name $n -ErrorAction SilentlyContinue } catch { }
+    }
+    try { Set-ItemProperty -Path $winlogon -Name 'AutoAdminLogon' -Value '0' -ErrorAction SilentlyContinue } catch { }
+    foreach ($sf in @("$script:DeployRoot\config\secret.key", "$script:DeployRoot\config\deploy.config.json", 'C:\Deploy\autounattend.xml')) {
+        try { if (Test-Path -LiteralPath $sf) { Remove-Item -LiteralPath $sf -Force -ErrorAction SilentlyContinue } } catch { }
+    }
+    if (-not [string]::IsNullOrWhiteSpace($LocalAdminUser)) {
+        try {
+            Add-Type -AssemblyName System.Web
+            $pw  = [System.Web.Security.Membership]::GeneratePassword(20, 5)
+            Set-LocalUser -Name $LocalAdminUser -Password (ConvertTo-SecureString $pw -AsPlainText -Force) -ErrorAction SilentlyContinue
+            $pw = $null
+        } catch { }
+    }
+    try { Write-DeployLog "Safe-Scrub ausgeführt (Auto-Logon + Secrets entfernt)." -Level OK -Component scrub } catch { }
+}
+
+# ---------------------------------------------------------------------------
+# Idempotenz-Marker — verhindert, dass ein erneuter USB-Boot die frisch
+# installierte Platte wieder löscht (§ Review-Fund #7).
+# ---------------------------------------------------------------------------
+function Write-DeployAppliedMarker {
+    param([Parameter(Mandatory)][string]$WindowsDrive, [string]$BuildUtc)
+    $dir = Join-Path $WindowsDrive 'WinDeploy'
+    New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    [pscustomobject]@{
+        applied  = $true
+        buildUtc = $BuildUtc
+        stampUtc = (Get-Date).ToUniversalTime().ToString('o')
+    } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $dir 'applied.json') -Encoding UTF8
+}
+
+function Test-DeployAlreadyApplied {
+    foreach ($v in (Get-Volume | Where-Object { $_.DriveLetter })) {
+        $m = ('{0}:\WinDeploy\applied.json' -f $v.DriveLetter)
+        if (Test-Path -LiteralPath $m) { return $true }
+    }
+    return $false
+}
+
+function Set-FirmwareBootToWindows {
+    # Best-effort: nächsten Firmware-Start auf den Windows-Bootmanager legen,
+    # damit ein erneuter USB-Boot nicht in einer (harmlosen) WinPE-Schleife endet.
+    try { & bcdedit /set '{fwbootmgr}' bootsequence '{bootmgr}' 2>&1 | Out-Null } catch { }
+}
+
 Export-ModuleMember -Function `
     Get-DeployRoot, Initialize-DeployPaths, Write-DeployLog, Get-DeployConfig, `
     Get-DeployState, Set-DeployState, Test-DeployStepDone, Complete-DeployStep, Set-DeployFailure, `
     ConvertTo-SafeComputerName, New-DeployRandomSuffix, Get-TargetInternalDisk, `
-    Register-DeployResumeTask, Unregister-DeployResumeTask, Unprotect-DeploySecret
+    Register-DeployResumeTask, Unregister-DeployResumeTask, Unprotect-DeploySecret, `
+    Invoke-DeploySafeScrub, Write-DeployAppliedMarker, Test-DeployAlreadyApplied, Set-FirmwareBootToWindows

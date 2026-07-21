@@ -1,7 +1,7 @@
 {
   "_hinweis": "Beispiel-Softwareliste. Wird vom Generator in deploy.config.json übernommen. MSI = garantierte Offline-Baseline (Dateien unter payload/software ablegen); choco/winget brauchen Netz.",
   "msi": [
-    { "name": "7-Zip", "path": "7z-x64.msi", "args": "/qn /norestart" }
+    { "name": "7-Zip", "path": "7z-x64.msi" }
   ],
   "choco": [
     { "name": "Google Chrome", "id": "googlechrome" },

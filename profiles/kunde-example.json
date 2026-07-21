@@ -43,7 +43,7 @@
 
   "software": {
     "msi": [
-      { "name": "7-Zip", "path": "7z-x64.msi", "args": "/qn /norestart" }
+      { "name": "7-Zip", "path": "7z-x64.msi" }
     ],
     "choco": [
       { "name": "Google Chrome", "id": "googlechrome" },

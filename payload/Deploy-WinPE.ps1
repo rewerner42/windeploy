@@ -1,18 +1,20 @@
 #requires -Version 5.1
 <#
     Deploy-WinPE.ps1 — läuft in WinPE (via WinPE-PowerShell-Komponente).
-    Wird aus autounattend.xml (windowsPE-Pass, RunSynchronous) gestartet.
+
+    PRIMÄRER Start: winpeshl.ini/startnet in der boot.wim ruft dieses Skript direkt auf
+    (siehe lib/Build-UsbMedia.ps1) — unabhängig von der 24H2/25H2-Setup-Engine.
+    FALLBACK: autounattend.xml windowsPE RunSynchronous (falls doch über setup.exe gebootet).
 
     Verantwortlich für den sicherheitskritischen Teil (§5.1):
-      1. Ziel-Datenträger FAIL-SAFE wählen (Abbruch statt falscher Wipe)
-      2. GPT/UEFI-Partitionen anlegen (ESP / MSR / Windows / Recovery)
-      3. Windows-Abbild via DISM anwenden (install.wim/.esd von der NTFS-Payload)
-      4. Bootdateien schreiben (bcdboot)
-      5. autounattend.xml + Payload auf die Systemplatte kopieren
-      6. Reboot in das installierte Windows
+      1. Medium-/Abbild-Datenträger ausschließen, Ziel FAIL-SAFE wählen (Abbruch statt falscher Wipe)
+      2. Idempotenz-Marker prüfen -> kein erneuter Wipe einer bereits installierten Platte
+      3. GPT/UEFI-Partitionen anlegen (ESP / MSR / Windows / Recovery)
+      4. Windows-Abbild via DISM anwenden
+      5. Bootdateien schreiben (bcdboot), autounattend.xml nach Panther, Payload nach C:\Deploy
+      6. Marker schreiben, Reboot in das installierte Windows
 
-    Aufruf (aus autounattend RunSynchronous, Laufwerksbuchstabe wird gesucht):
-      for %i in (C..Z) do if exist %i:\deploy\Deploy-WinPE.ps1 powershell -File %i:\deploy\Deploy-WinPE.ps1 -MediaRoot %i:\
+    Aufruf: Deploy-WinPE.ps1 -MediaRoot <Laufwerk der \deploy-Payload, z.B. D:\>
 #>
 [CmdletBinding()]
 param(
@@ -23,7 +25,6 @@ $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'lib\Deploy.Common.psm1') -Force
 
 function Find-InstallImage {
-    # install.wim/.esd liegt auf der NTFS-Payload-Partition unter \images\
     foreach ($vol in (Get-Volume | Where-Object { $_.DriveLetter })) {
         foreach ($name in @('install.wim','install.esd','install.swm')) {
             $p = ('{0}:\images\{1}' -f $vol.DriveLetter, $name)
@@ -33,18 +34,48 @@ function Find-InstallImage {
     throw "Kein Windows-Abbild (\images\install.wim/.esd) auf den Datenträgern gefunden."
 }
 
+function Get-DiskNumberForLetter {
+    param([string]$Letter)
+    try {
+        $p = Get-Partition -DriveLetter $Letter -ErrorAction Stop
+        return [int]$p.DiskNumber
+    } catch { return $null }
+}
+
 try {
     Write-DeployLog "=== WinPE-Phase gestartet (MediaRoot=$MediaRoot) ===" -Component winpe
 
-    # Konfig von der Payload lesen (Flags: allowMultipleDisks, edition, imageIndex)
     $cfgPath = Join-Path $PSScriptRoot 'config\deploy.config.json'
     $cfg = Get-Content -LiteralPath $cfgPath -Raw | ConvertFrom-Json
+
+    # Abbild + dessen Datenträger bestimmen
+    $image = Find-InstallImage
+    $imageLetter = $image.Substring(0,1)
+
+    # Medium- und Abbild-Datenträger ausschließen (IsBoot ist in WinPE unzuverlässig, Review-Fund #9)
+    $excludeDisks = @()
+    $mediaLetter = $MediaRoot.Substring(0,1)
+    foreach ($lt in @($mediaLetter, $imageLetter)) {
+        $dn = Get-DiskNumberForLetter -Letter $lt
+        if ($null -ne $dn) { $excludeDisks += $dn }
+    }
+    $excludeDisks = @($excludeDisks | Select-Object -Unique)
+
+    # Idempotenz: bereits deployt? -> nicht erneut löschen (Review-Fund #7)
+    if (Test-DeployAlreadyApplied) {
+        Write-DeployLog "WinDeploy-Marker gefunden — diese Platte ist bereits installiert. KEIN erneuter Wipe." -Level WARN -Component winpe
+        Write-DeployLog "Setze Firmware-Start auf Windows und starte neu. (Falls Schleife: USB entfernen.)" -Component winpe
+        Set-FirmwareBootToWindows
+        Start-Sleep -Seconds 5
+        & "$env:SystemRoot\System32\wpeutil.exe" reboot
+        return
+    }
 
     # 1) Ziel-Datenträger fail-safe wählen
     $allowMulti = [bool]$cfg.disk.allowMultipleDisks
     $minGB      = [int]$cfg.disk.minSizeGB
     if ($minGB -le 0) { $minGB = 60 }
-    $disk = Get-TargetInternalDisk -AllowMultiple:$allowMulti -MinSizeGB $minGB
+    $disk = Get-TargetInternalDisk -AllowMultiple:$allowMulti -MinSizeGB $minGB -ExcludeDiskNumbers $excludeDisks
     $diskNumber = $disk.Number
 
     # 2) Partitionieren (GPT/UEFI)
@@ -60,8 +91,7 @@ try {
     # MSR (16MB)
     New-Partition -DiskNumber $diskNumber -Size 16MB -GptType '{e3c9e316-0b5c-4db8-817d-f92df00215ae}' | Out-Null
 
-    # Recovery (1GB, direkt hinter Windows angelegt -> zuerst Windows, dann Recovery)
-    # Windows-Partition: Rest minus 1GB Recovery
+    # Windows-Partition (Rest minus 1GB Recovery + etwas Reserve)
     $reserveRecovery = 1024MB
     $espMsr = 316MB
     $winSize = $disk.Size - $espMsr - $reserveRecovery - 64MB
@@ -73,7 +103,6 @@ try {
     $rec = New-Partition -DiskNumber $diskNumber -UseMaximumSize -GptType '{de94bba4-06d1-4d40-a16a-bfd50179d6ac}'
     Format-Volume -Partition $rec -FileSystem NTFS -NewFileSystemLabel 'Recovery' -Confirm:$false | Out-Null
     $rec | Set-Partition -NewDriveLetter R
-    # Attribut GPT_ATTRIBUTE_PLATFORM_REQUIRED + hidden für WinRE via diskpart
     $dp = @(
         "select disk $diskNumber",
         "select partition $($rec.PartitionNumber)",
@@ -85,7 +114,6 @@ try {
     Write-DeployLog "Partitionierung abgeschlossen (ESP=S:, Windows=W:, Recovery=R:)." -Level OK -Component winpe
 
     # 3) Abbild anwenden (DISM)
-    $image = Find-InstallImage
     $index = [int]$cfg.image.index
     if ($index -le 0) { $index = 1 }
     Write-DeployLog "Wende Abbild an: $image (Index $index) -> W:\ ..." -Component winpe
@@ -100,7 +128,7 @@ try {
     Write-DeployLog "Schreibe Bootdateien (bcdboot) ..." -Component winpe
     & "$env:SystemRoot\System32\bcdboot.exe" 'W:\Windows' /s S: /f UEFI | Out-Null
 
-    # WinRE einrichten (Recovery)
+    # WinRE einrichten
     try {
         $reSrc = 'W:\Windows\System32\Recovery\Winre.wim'
         if (Test-Path -LiteralPath $reSrc) {
@@ -110,16 +138,22 @@ try {
         }
     } catch { Write-DeployLog "WinRE-Setup übersprungen: $($_.Exception.Message)" -Level WARN -Component winpe }
 
-    # 5) autounattend.xml in Panther legen (specialize + oobeSystem laufen beim ersten Boot)
+    # 5) autounattend.xml in Panther legen (specialize + oobeSystem beim ersten Boot)
     $answer = Join-Path $MediaRoot 'autounattend.xml'
-    if (-not (Test-Path -LiteralPath $answer)) { $answer = Join-Path $PSScriptRoot 'autounattend.xml' }
+    if (-not (Test-Path -LiteralPath $answer)) { throw "autounattend.xml nicht unter MediaRoot '$MediaRoot' gefunden." }
     New-Item -ItemType Directory -Path 'W:\Windows\Panther' -Force | Out-Null
     Copy-Item -LiteralPath $answer -Destination 'W:\Windows\Panther\unattend.xml' -Force
 
-    # Payload nach W:\Deploy kopieren (= C:\Deploy nach Boot) — überlebt USB-Abzug
+    # Payload nach W:\Deploy (= C:\Deploy nach Boot). autounattend.xml NICHT mitkopieren
+    # (enthält lokales Admin-PW im Klartext, Review-Fund #8).
     Write-DeployLog "Kopiere Payload nach W:\Deploy ..." -Component winpe
     New-Item -ItemType Directory -Path 'W:\Deploy' -Force | Out-Null
-    Copy-Item -Path (Join-Path $PSScriptRoot '*') -Destination 'W:\Deploy' -Recurse -Force -Exclude 'images'
+    Copy-Item -Path (Join-Path $PSScriptRoot '*') -Destination 'W:\Deploy' -Recurse -Force -Exclude 'images','autounattend.xml'
+
+    # 6) Idempotenz-Marker schreiben, dann Reboot
+    $buildUtc = ''
+    if ($cfg.PSObject.Properties['buildUtc']) { $buildUtc = [string]$cfg.buildUtc }
+    Write-DeployAppliedMarker -WindowsDrive 'W:' -BuildUtc $buildUtc
 
     Write-DeployLog "=== WinPE-Phase fertig — Neustart in das installierte Windows ===" -Level OK -Component winpe
     Start-Sleep -Seconds 3
@@ -128,7 +162,6 @@ try {
 catch {
     Write-DeployLog "WinPE-Phase FEHLGESCHLAGEN: $($_.Exception.Message)" -Level ERROR -Component winpe
     Write-DeployLog $_.ScriptStackTrace -Level ERROR -Component winpe
-    # Bewusst NICHT automatisch weiter — Techniker soll den Fehler sehen.
     Write-Host ""
     Write-Host "  ############################################################" -ForegroundColor Red
     Write-Host "  #  WINDEPLOY ABGEBROCHEN — kein Datenträger wurde verändert #" -ForegroundColor Red

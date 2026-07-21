@@ -48,8 +48,9 @@ function Install-SoftwareStep {
             try {
                 $path = $m.path
                 if ($path -notmatch '^[A-Za-z]:\\') { $path = Join-Path (Join-Path (Get-DeployRoot) 'software') $path }
+                # Silent-Defaults IMMER behalten, Profil-Args nur ANHÄNGEN (Review-Fund #11)
                 $argline = '/qn /norestart'
-                if ($m.args) { $argline = [string]$m.args }
+                if ($m.args) { $argline = $argline + ' ' + [string]$m.args }
                 $code = Install-MsiPackage -Path $path -Arguments $argline
                 if ($code -eq 0 -or $code -eq 1641 -or $code -eq 3010) {
                     if ($code -eq 3010 -or $code -eq 1641) { $script:DeployRebootRequested = $true }
@@ -82,9 +83,11 @@ function Install-SoftwareStep {
         foreach ($c in @($sw.choco)) {
             $id = $c.id; $name = $c.name
             try {
-                $extra = ''
-                if ($c.args) { $extra = [string]$c.args }
-                & choco.exe install $id -y --no-progress $extra 2>&1 | Out-Null
+                # Args als echtes Argument-Array (Review-Fund #15): mehrteilige Werte
+                # wie "--version 1.2.3" würden als ein Token sonst fehlschlagen.
+                $cargs = @('install', $id, '-y', '--no-progress')
+                if ($c.args) { $cargs += ([string]$c.args -split '\s+' | Where-Object { $_ -ne '' }) }
+                & choco.exe @cargs 2>&1 | Out-Null
                 $code = $LASTEXITCODE
                 if ($code -eq 0 -or $code -eq 3010) {
                     if ($code -eq 3010) { $script:DeployRebootRequested = $true }

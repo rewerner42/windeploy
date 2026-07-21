@@ -91,10 +91,17 @@ try {
 }
 catch {
     $msg = $_.Exception.Message
+    Write-DeployLog "Orchestrator abgebrochen: $msg" -Level ERROR -Component orch
+    Write-DeployLog $_.ScriptStackTrace -Level ERROR -Component orch
+
+    # Fehlerpfad-Scrub: ein abgebrochener Deploy darf NIE Credentials/Auto-Logon
+    # zurücklassen (Review-Fund #14). Best-effort, wirft nie.
+    $adminUser = $null
+    try { if ($cfg -and $cfg.localAdmin) { $adminUser = $cfg.localAdmin.username } } catch { }
+    try { Invoke-DeploySafeScrub -LocalAdminUser $adminUser } catch { }
+
     try {
         $state = Get-DeployState
         Set-DeployFailure -State $state -Reason $msg
     } catch { Write-DeployLog "Konnte Fehlerstatus nicht speichern: $($_.Exception.Message)" -Level ERROR -Component orch }
-    Write-DeployLog "Orchestrator abgebrochen: $msg" -Level ERROR -Component orch
-    Write-DeployLog $_.ScriptStackTrace -Level ERROR -Component orch
 }

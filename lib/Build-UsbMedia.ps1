@@ -66,24 +66,37 @@ function Invoke-BuildUsbMedia {
         return
     }
 
-    # --- Partitionieren ---
+    # --- Partitionieren (Laufwerksbuchstaben automatisch vergeben, Review-Fund #5) ---
     Write-Host "[INFO] Partitioniere $target ..." -ForegroundColor Cyan
     Clear-Disk -Number $UsbDisk -RemoveData -RemoveOEM -Confirm:$false
     Initialize-Disk -Number $UsbDisk -PartitionStyle GPT -Confirm:$false -ErrorAction SilentlyContinue
 
-    $bootPart = New-Partition -DiskNumber $UsbDisk -Size 2GB -GptType '{ebd0a0a2-b9e5-4433-87c0-68b6b72699c7}'
+    $bootPart = New-Partition -DiskNumber $UsbDisk -Size 2GB -GptType '{ebd0a0a2-b9e5-4433-87c0-68b6b72699c7}' -AssignDriveLetter
     Format-Volume -Partition $bootPart -FileSystem FAT32 -NewFileSystemLabel 'WDBOOT' -Confirm:$false | Out-Null
-    $bootPart | Set-Partition -NewDriveLetter B
-    $dataPart = New-Partition -DiskNumber $UsbDisk -UseMaximumSize -GptType '{ebd0a0a2-b9e5-4433-87c0-68b6b72699c7}'
+    $bl = (Get-Partition -DiskNumber $UsbDisk -PartitionNumber $bootPart.PartitionNumber).DriveLetter
+    if (-not $bl) { throw "Konnte dem Boot-Volume keinen Laufwerksbuchstaben zuweisen." }
+
+    $dataPart = New-Partition -DiskNumber $UsbDisk -UseMaximumSize -GptType '{ebd0a0a2-b9e5-4433-87c0-68b6b72699c7}' -AssignDriveLetter
     Format-Volume -Partition $dataPart -FileSystem NTFS -NewFileSystemLabel 'WDDATA' -Confirm:$false | Out-Null
-    $dataPart | Set-Partition -NewDriveLetter Y
+    $dl = (Get-Partition -DiskNumber $UsbDisk -PartitionNumber $dataPart.PartitionNumber).DriveLetter
+    if (-not $dl) { throw "Konnte dem Daten-Volume keinen Laufwerksbuchstaben zuweisen." }
+
+    $bootRoot = "$($bl):\"
+    $dataRoot = "$($dl):\"
+    Write-Host "[INFO] Boot=$bootRoot  Data=$dataRoot" -ForegroundColor Cyan
+
+    # robocopy: Exit-Codes 0-7 = Erfolg, >=8 = Fehler (native exe, kein terminierender PS-Fehler, Fund #6)
+    function Invoke-Robocopy2 { param([string[]]$RcArgs)
+        & robocopy @RcArgs | Out-Null
+        if ($LASTEXITCODE -ge 8) { throw "robocopy fehlgeschlagen (Code $LASTEXITCODE): $($RcArgs -join ' ')" }
+    }
 
     # --- Setup-Bootdateien auf FAT32 (ohne install.wim) ---
     Write-Host "[INFO] Kopiere Windows-Setup-Bootdateien ..." -ForegroundColor Cyan
-    robocopy $WindowsMediaPath 'B:\' /E /XF 'install.wim' 'install.esd' /XD 'sources\install' /NFL /NDL /NJH /NJS | Out-Null
-    New-Item -ItemType Directory -Path 'B:\sources' -Force | Out-Null
+    Invoke-Robocopy2 @($WindowsMediaPath, $bootRoot, '/E', '/XF', 'install.wim', 'install.esd', '/XD', (Join-Path $WindowsMediaPath 'sources\install'), '/NFL', '/NDL', '/NJH', '/NJS')
+    New-Item -ItemType Directory -Path (Join-Path $bootRoot 'sources') -Force | Out-Null
 
-    # --- boot.wim mit PowerShell patchen (Index 2 = Setup-WinPE) ---
+    # --- boot.wim patchen: WinPE-PowerShell + WinPE-Startlauncher (Index 2 = Setup-WinPE) ---
     $work = Join-Path $OutputPath 'work'
     $mount = Join-Path $work 'mount'
     New-Item -ItemType Directory -Path $mount -Force | Out-Null
@@ -91,22 +104,37 @@ function Invoke-BuildUsbMedia {
     Copy-Item -LiteralPath $srcBoot -Destination $workBoot -Force
     Set-ItemProperty -LiteralPath $workBoot -Name IsReadOnly -Value $false
     try {
-        Write-Host "[INFO] Mounte boot.wim (Index 2) und füge WinPE-PowerShell hinzu ..." -ForegroundColor Cyan
+        Write-Host "[INFO] Mounte boot.wim (Index 2), füge WinPE-PowerShell + Startlauncher hinzu ..." -ForegroundColor Cyan
         Mount-WindowsImage -ImagePath $workBoot -Index 2 -Path $mount -ErrorAction Stop | Out-Null
         Add-WinPePowerShell -MountPath $mount -OcPath $ocPath
+
+        # KRITISCH (Fund #1/#13): Deploy-WinPE.ps1 direkt aus WinPE starten, NICHT über setup.exe
+        # (die 24H2/25H2-Engine ignoriert windowsPE-RunSynchronous auf Stock-Medien).
+        $winpeshl = @(
+            '[LaunchApps]',
+            '%SYSTEMROOT%\System32\wpeinit.exe',
+            '%SYSTEMROOT%\System32\cmd.exe, "/c %SYSTEMDRIVE%\deploy-launch.cmd"'
+        ) -join "`r`n"
+        Set-Content -LiteralPath (Join-Path $mount 'Windows\System32\winpeshl.ini') -Value $winpeshl -Encoding Ascii
+
+        $launch = '@echo off' + "`r`n" +
+            'for %%i in (C D E F G H I J K L M N O P Q R S T U V W X Y Z) do if exist %%i:\deploy\Deploy-WinPE.ps1 powershell -NoProfile -ExecutionPolicy Bypass -File %%i:\deploy\Deploy-WinPE.ps1 -MediaRoot %%i:\'
+        Set-Content -LiteralPath (Join-Path $mount 'deploy-launch.cmd') -Value $launch -Encoding Ascii
+        Write-Host "[ OK ] WinPE-Startlauncher (winpeshl.ini) injiziert" -ForegroundColor Green
+
         Dismount-WindowsImage -Path $mount -Save -ErrorAction Stop | Out-Null
     } catch {
         try { Dismount-WindowsImage -Path $mount -Discard -ErrorAction SilentlyContinue | Out-Null } catch { }
         throw
     }
-    Copy-Item -LiteralPath $workBoot -Destination 'B:\sources\boot.wim' -Force
+    Copy-Item -LiteralPath $workBoot -Destination (Join-Path $bootRoot 'sources\boot.wim') -Force
 
     # --- autounattend.xml + Payload auf FAT32 ---
-    Copy-Item -LiteralPath (Join-Path $OutputPath 'autounattend.xml') -Destination 'B:\autounattend.xml' -Force
-    robocopy (Join-Path $OutputPath 'deploy') 'B:\deploy' /E /NFL /NDL /NJH /NJS | Out-Null
+    Copy-Item -LiteralPath (Join-Path $OutputPath 'autounattend.xml') -Destination (Join-Path $bootRoot 'autounattend.xml') -Force
+    Invoke-Robocopy2 @((Join-Path $OutputPath 'deploy'), (Join-Path $bootRoot 'deploy'), '/E', '/NFL', '/NDL', '/NJH', '/NJS')
 
     # --- install.wim auf NTFS (§5.3) ---
-    New-Item -ItemType Directory -Path 'Y:\images' -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $dataRoot 'images') -Force | Out-Null
     $img = Get-ChildItem -LiteralPath (Join-Path $OutputPath 'images') -File -ErrorAction SilentlyContinue |
            Where-Object { $_.Extension -in '.wim','.esd','.swm' } | Select-Object -First 1
     if (-not $img) {
@@ -116,9 +144,8 @@ function Invoke-BuildUsbMedia {
     }
     if (-not $img) { throw "Kein install.wim/.esd gefunden (weder in Output\images noch im WindowsMediaPath)." }
     Write-Host "[INFO] Kopiere $($img.Name) auf die NTFS-Partition (kann dauern) ..." -ForegroundColor Cyan
-    Copy-Item -LiteralPath $img.FullName -Destination ('Y:\images\' + $img.Name) -Force
+    Copy-Item -LiteralPath $img.FullName -Destination (Join-Path $dataRoot ('images\' + $img.Name)) -Force
 
-    # Arbeitsordner aufräumen
     try { Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue } catch { }
 
     Write-Host "[ OK ] WinDeploy-USB fertig auf Disk $UsbDisk. Vom Ziel-PC (UEFI) booten." -ForegroundColor Green

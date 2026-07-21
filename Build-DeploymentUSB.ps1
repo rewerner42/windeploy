@@ -90,18 +90,35 @@ function Test-ProfileSemantics {
 
     if ($P.schemaVersion -ne 1) { $errs += "schemaVersion muss 1 sein." }
 
-    $prefix = [string]$P.naming.prefix
-    if ($prefix -notmatch '^[A-Za-z0-9-]+$') { $errs += "naming.prefix enthält ungültige Zeichen." }
-    if ($prefix.Length -gt 12) { $errs += "naming.prefix ist zu lang (max 12; NetBIOS-Budget = 15)." }
-    if ($prefix.Length -ge 14) { $errs += "naming.prefix lässt keinen Platz für die Seriennummer." }
-    if ($prefix.Length -gt 10) { Write-Warn2 "naming.prefix ist lang ($($prefix.Length)) — wenig Platz für eindeutigen Serienteil (15-Zeichen-Grenze)." }
+    # Alle Zugriffe StrictMode-sicher via Get-ProfileProp (Review-Fund #3): fehlende
+    # Pflichtfelder ergeben eine saubere Meldung VOR jedem Schreibvorgang, keinen Absturz.
+    $prefix = [string](Get-ProfileProp $P.naming 'prefix')
+    if ($prefix.Length -eq 0) { $errs += "naming.prefix fehlt." }
+    else {
+        if ($prefix -notmatch '^[A-Za-z0-9-]+$') { $errs += "naming.prefix enthält ungültige Zeichen." }
+        if ($prefix.Length -gt 12) { $errs += "naming.prefix ist zu lang (max 12; NetBIOS-Budget = 15)." }
+        elseif ($prefix.Length -ge 14) { $errs += "naming.prefix lässt keinen Platz für die Seriennummer." }
+        if ($prefix.Length -gt 10) { Write-Warn2 "naming.prefix ist lang ($($prefix.Length)) — wenig Platz für eindeutigen Serienteil (15-Zeichen-Grenze)." }
+    }
 
-    if ([string]$P.windows.productKey -notmatch '^[A-Z0-9]{5}(-[A-Z0-9]{5}){4}$') { $errs += "windows.productKey hat kein gültiges Format." }
-    if ([int]$P.windows.imageIndex -lt 1) { $errs += "windows.imageIndex muss >= 1 sein." }
-    if ([string]$P.locale.language -notmatch '^[a-z]{2}-[A-Z]{2}$') { $errs += "locale.language muss wie 'de-DE' aussehen." }
-    if (([string]$P.localAdmin.username).Length -gt 20) { $errs += "localAdmin.username zu lang (max 20)." }
-    if (-not $P.domainJoin.username) { $errs += "domainJoin.username fehlt (delegiertes Join-Konto)." }
-    if ($P.domainJoin.username -match '(?i)administrator$') { Write-Warn2 "domainJoin.username sieht nach Admin-Konto aus — bitte delegiertes, minimal berechtigtes Konto verwenden!" }
+    $pk        = [string](Get-ProfileProp $P.windows 'productKey')
+    $ii        = Get-ProfileProp $P.windows 'imageIndex'
+    $lang      = [string](Get-ProfileProp $P.locale 'language')
+    $adminName = [string](Get-ProfileProp $P.localAdmin 'username')
+    $joinUser  = [string](Get-ProfileProp $P.domainJoin 'username')
+
+    if ($pk -notmatch '^[A-Z0-9]{5}(-[A-Z0-9]{5}){4}$') { $errs += "windows.productKey fehlt oder Format ungültig." }
+    if (-not $ii -or [int]$ii -lt 1) { $errs += "windows.imageIndex fehlt oder < 1." }
+    if ($lang -notmatch '^[a-z]{2}-[A-Z]{2}$') { $errs += "locale.language fehlt oder nicht wie 'de-DE'." }
+    if (-not (Get-ProfileProp $P.locale 'inputLocale')) { $errs += "locale.inputLocale fehlt." }
+    if (-not (Get-ProfileProp $P.locale 'timeZone'))    { $errs += "locale.timeZone fehlt." }
+    if (-not (Get-ProfileProp $P.windows 'edition'))    { $errs += "windows.edition fehlt." }
+    if ($adminName.Length -eq 0) { $errs += "localAdmin.username fehlt." }
+    elseif ($adminName.Length -gt 20) { $errs += "localAdmin.username zu lang (max 20)." }
+    if (-not (Get-ProfileProp $P.localAdmin 'password')) { $errs += "localAdmin.password fehlt." }
+    if (-not (Get-ProfileProp $P.domainJoin 'domain'))   { $errs += "domainJoin.domain fehlt." }
+    if ($joinUser.Length -eq 0) { $errs += "domainJoin.username fehlt (delegiertes Join-Konto)." }
+    elseif ($joinUser -match '(?i)administrator$') { Write-Warn2 "domainJoin.username sieht nach Admin-Konto aus — bitte delegiertes, minimal berechtigtes Konto verwenden!" }
 
     if ($errs.Count) { Fail ("Profil ungültig:`n - " + ($errs -join "`n - ")) }
     Write-Ok "Profil semantisch validiert."
@@ -194,14 +211,20 @@ if ($AdkXsd) {
     } else { Write-Warn2 "AdkXsd nicht gefunden: $AdkXsd" }
 }
 
-# Build-Metadaten als Kommentar einfügen
+# Build-Metadaten als Kommentar einfügen — index-basiert, ohne -replace-Backref-Parsing,
+# Kommentar-Inhalt entschärft ('--' und <>), danach ERNEUT wohlgeformt-Prüfung (Review-Fund #2).
 $stamp = (Get-Date).ToUniversalTime().ToString('u')
-$metaComment = "<!-- WinDeploy generiert: profile=$($prof.profileName) v$($prof.profileVersion); generator=$GeneratorVersion; buildUtc=$stamp -->"
-$rendered = $rendered -replace '(<unattend[^>]*>)', ("`$1`r`n  " + $metaComment)
+$cn = ((([string]$prof.profileName)    -replace '-{2,}','-') -replace '[<>]','')
+$cv = ((([string]$prof.profileVersion) -replace '-{2,}','-') -replace '[<>]','')
+$metaComment = "<!-- WinDeploy generiert: profile=$cn v$cv; generator=$GeneratorVersion; buildUtc=$stamp -->"
+$m = [regex]::Match($rendered, '<unattend[^>]*>')
+if ($m.Success) { $rendered = $rendered.Insert($m.Index + $m.Length, "`r`n  " + $metaComment) }
+try { $null = [xml]$rendered } catch { Fail "autounattend.xml nach Metadaten-Kommentar nicht mehr wohlgeformt: $($_.Exception.Message)" }
 
+# Nur an den USB-Root schreiben. NICHT in deployDir — autounattend.xml trägt das lokale
+# Admin-Passwort im Klartext und darf nicht als C:\Deploy\autounattend.xml landen (Review-Fund #8).
 $answerOut = Join-Path $OutputPath 'autounattend.xml'
 Set-Content -LiteralPath $answerOut -Value $rendered -Encoding UTF8
-Set-Content -LiteralPath (Join-Path $deployDir 'autounattend.xml') -Value $rendered -Encoding UTF8
 Write-Ok "autounattend.xml erzeugt."
 
 # ---------------------------------------------------------------------------

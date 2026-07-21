@@ -48,6 +48,11 @@ desselben Kunden genutzt. Kein Server (WDS/PXE/Intune) nötig.
 └──────────────────────────────────────────────────────────────────┘
 ```
 
+> **Robuster WinPE-Start:** `Deploy-WinPE.ps1` wird über einen in die `boot.wim` injizierten
+> Startlauncher (`winpeshl.ini`) **direkt** gestartet – nicht über `setup.exe`. Grund: Die
+> Setup-Engine von Windows 11 24H2/25H2 ignoriert `windowsPE`-Antwortdatei-Trigger auf Stock-Medien.
+> Ein Idempotenz-Marker verhindert, dass ein erneuter USB-Boot die frisch installierte Platte löscht.
+
 ---
 
 ## Voraussetzungen

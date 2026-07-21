@@ -270,5 +270,32 @@ Primärpfad für gemischte/Einzel-Hardware. Beides teilt sich denselben USB.
 
 ---
 
+---
+
+## Nachtrag: Code-Review-Fixes (2026-07-21)
+
+Nach der Implementierung wurde der Code von 4 Fach-Agenten adversarial geprüft (40 Funde, 20 verifiziert,
+**15 bestätigt**). Die wichtigsten eingearbeiteten Korrekturen:
+
+- **🔴 KRITISCH – WinPE-Trigger:** Der ganze Ablauf hing an `windowsPE`-`RunSynchronous`. Die 24H2/25H2-Setup-
+  Engine (setuphost/SetupPrep) **ignoriert** das auf Stock-Medien → PC landet still im interaktiven Setup.
+  **Fix:** `winpeshl.ini` in die `boot.wim` injizieren, `Deploy-WinPE.ps1` direkt starten (wie MDT LiteTouch);
+  RunSynchronous bleibt nur als Fallback.
+- **🟠 Re-Wipe-Schleife:** erneuter USB-Boot löschte die frische Installation. **Fix:** Idempotenz-Marker +
+  Firmware-BootNext.
+- **🟠 Disk-Auswahl:** `IsBoot` ist in WinPE unzuverlässig. **Fix:** Medium-/Abbild-Datenträger explizit per
+  Disk-Nummer ausschließen.
+- **🟠 Credentials auf Fehlerpfad:** ein abgebrochener Deploy ließ Secrets/Auto-Logon liegen. **Fix:**
+  `Invoke-DeploySafeScrub` läuft jetzt auch im `catch` und **zuerst** im Cleanup (unabänderlich).
+- **🟠 Klartext-Antwortdatei** gelangte nach `C:\Deploy`. **Fix:** nicht mehr mitkopiert + Scrub-Liste erweitert.
+- **🟠 USB-Bau:** hartkodierte Laufwerksbuchstaben `B:/Y:` → dynamisch; robocopy-Exit-Codes werden geprüft.
+- **🟠 Software:** MSI-Silent-Args gingen bei eigenen Args verloren → jetzt angehängt; Choco-Args als Array.
+- **🟠 Fortsetzungs-Task** startete auf Akku nicht → Battery-Settings gesetzt.
+- **🟠 Generator:** fehlende Pflichtfelder → sauberer Abbruch statt Absturz; Metadaten-Kommentar ohne
+  `-replace`-Backreference-Injection + erneute Wohlgeformt-Prüfung.
+
+---
+
 *Erstellt und geprüft am 2026-07-21. Prüfung: 5 Fach-Agenten (Windows-Setup, Domänenbeitritt/Sicherheit,
-Softwareverteilung, Tool-Architektur, Ansatz-Auswahl) + Synthese, mit Abgleich gegen aktuelle Microsoft-Doku.*
+Softwareverteilung, Tool-Architektur, Ansatz-Auswahl) + Synthese; Implementierung anschließend von 4 Agenten
+adversarial code-reviewed (15 bestätigte Funde eingearbeitet). Abgleich gegen aktuelle Microsoft-Doku.*
