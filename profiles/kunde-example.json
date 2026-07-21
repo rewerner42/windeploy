@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "profileName": "Muster GmbH - Standardarbeitsplatz",
+  "profileVersion": "1.0.0",
+
+  "windows": {
+    "edition": "Windows 11 Pro",
+    "imageIndex": 6,
+    "productKey": "VK7JG-NPHTM-C97JM-9MPGT-3V66T"
+  },
+
+  "locale": {
+    "language": "de-DE",
+    "inputLocale": "0407:00000407",
+    "timeZone": "W. Europe Standard Time"
+  },
+
+  "registration": {
+    "owner": "Muster GmbH",
+    "organization": "Muster GmbH"
+  },
+
+  "disk": {
+    "minSizeGB": 60,
+    "allowMultipleDisks": false
+  },
+
+  "naming": {
+    "prefix": "MUS-"
+  },
+
+  "localAdmin": {
+    "username": "itadmin",
+    "password": "ChangeMe-AtBuild!23",
+    "randomizePassword": true
+  },
+
+  "domainJoin": {
+    "domain": "corp.muster-gmbh.de",
+    "ouPath": "OU=Arbeitsplaetze,OU=Muster,DC=corp,DC=muster-gmbh,DC=de",
+    "username": "corp\\svc-domainjoin"
+  },
+
+  "software": {
+    "msi": [
+      { "name": "7-Zip", "path": "7z-x64.msi", "args": "/qn /norestart" }
+    ],
+    "choco": [
+      { "name": "Google Chrome", "id": "googlechrome" },
+      { "name": "Adobe Reader",  "id": "adobereader" }
+    ],
+    "winget": [
+      { "name": "Microsoft PowerToys", "id": "Microsoft.PowerToys" }
+    ],
+    "rebootIfNeeded": true
+  },
+
+  "reporting": {
+    "sharePath": "\\\\fileserver\\deploy-reports$"
+  }
+}

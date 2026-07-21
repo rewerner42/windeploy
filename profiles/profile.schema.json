@@ -1,0 +1,106 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WinDeploy-Profil",
+  "type": "object",
+  "required": ["schemaVersion", "profileName", "profileVersion", "windows", "locale", "naming", "localAdmin", "domainJoin"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "profileName":    { "type": "string", "minLength": 1 },
+    "profileVersion": { "type": "string", "minLength": 1 },
+
+    "windows": {
+      "type": "object",
+      "required": ["edition", "imageIndex", "productKey"],
+      "additionalProperties": false,
+      "properties": {
+        "edition":    { "type": "string", "description": "z.B. 'Windows 11 Pro' (nur Doku)" },
+        "imageIndex": { "type": "integer", "minimum": 1, "description": "Index in install.wim" },
+        "productKey": { "type": "string", "pattern": "^[A-Z0-9]{5}(-[A-Z0-9]{5}){4}$" }
+      }
+    },
+
+    "locale": {
+      "type": "object",
+      "required": ["language", "inputLocale", "timeZone"],
+      "additionalProperties": false,
+      "properties": {
+        "language":    { "type": "string", "pattern": "^[a-z]{2}-[A-Z]{2}$", "description": "z.B. de-DE" },
+        "inputLocale": { "type": "string", "description": "z.B. 0407:00000407" },
+        "timeZone":    { "type": "string", "description": "z.B. 'W. Europe Standard Time'" }
+      }
+    },
+
+    "registration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "owner":        { "type": "string" },
+        "organization": { "type": "string" }
+      }
+    },
+
+    "disk": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "minSizeGB":          { "type": "integer", "minimum": 32, "default": 60 },
+        "allowMultipleDisks": { "type": "boolean", "default": false }
+      }
+    },
+
+    "naming": {
+      "type": "object",
+      "required": ["prefix"],
+      "additionalProperties": false,
+      "properties": {
+        "prefix": { "type": "string", "minLength": 1, "maxLength": 12, "pattern": "^[A-Za-z0-9-]+$" }
+      }
+    },
+
+    "localAdmin": {
+      "type": "object",
+      "required": ["username", "password"],
+      "additionalProperties": false,
+      "properties": {
+        "username":           { "type": "string", "minLength": 1, "maxLength": 20 },
+        "password":           { "type": "string", "minLength": 1, "description": "Erst-Passwort; wird nach Setup randomisiert" },
+        "randomizePassword":  { "type": "boolean", "default": true }
+      }
+    },
+
+    "domainJoin": {
+      "type": "object",
+      "required": ["domain", "username"],
+      "additionalProperties": false,
+      "properties": {
+        "domain":   { "type": "string", "minLength": 1, "description": "FQDN, z.B. corp.example.com" },
+        "ouPath":   { "type": "string", "description": "Distinguished Name der Ziel-OU" },
+        "username": { "type": "string", "minLength": 1, "description": "delegiertes Join-Konto (kein Domain Admin!)" },
+        "password": { "type": "string", "description": "Optional im Profil (unsicher). Besser: -PromptJoinPassword beim Build." }
+      }
+    },
+
+    "software": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "msi":    { "type": "array", "items": { "type": "object", "required": ["name","path"], "properties": {
+                        "name": {"type":"string"}, "path": {"type":"string"}, "args": {"type":"string"} } } },
+        "choco":  { "type": "array", "items": { "type": "object", "required": ["name","id"], "properties": {
+                        "name": {"type":"string"}, "id": {"type":"string"}, "args": {"type":"string"} } } },
+        "winget": { "type": "array", "items": { "type": "object", "required": ["name","id"], "properties": {
+                        "name": {"type":"string"}, "id": {"type":"string"} } } },
+        "rebootIfNeeded": { "type": "boolean", "default": true }
+      }
+    },
+
+    "reporting": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sharePath": { "type": "string", "description": "UNC-Pfad für Abschluss-Report (optional)" }
+      }
+    }
+  }
+}
