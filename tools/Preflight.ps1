@@ -88,12 +88,29 @@ foreach ($p in @('HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows Kits\Installed Ro
 }
 
 function Install-Adk {
-    if (-not $winget) { Write-Host "  winget fehlt - ADK bitte manuell installieren." -ForegroundColor Yellow; return }
     if (-not $isAdmin) { Write-Host "  Adminrechte fehlen - Installation übersprungen." -ForegroundColor Yellow; return }
-    Write-Host "  Installiere Windows ADK ..." -ForegroundColor Cyan
-    & winget install --id Microsoft.WindowsADK -e --accept-source-agreements --accept-package-agreements --disable-interactivity
-    Write-Host "  Installiere Windows PE Add-on ..." -ForegroundColor Cyan
-    & winget install --id Microsoft.ADKPEAddon -e --accept-source-agreements --accept-package-agreements --disable-interactivity
+    # ADK selbst: winget funktioniert.
+    if ($winget) {
+        Write-Host "  Installiere Windows ADK (winget) ..." -ForegroundColor Cyan
+        & winget install --id Microsoft.WindowsADK -e --accept-source-agreements --accept-package-agreements --disable-interactivity
+    } else {
+        Write-Host "  winget fehlt - ADK bitte manuell installieren (https://learn.microsoft.com/windows-hardware/get-started/adk-install)." -ForegroundColor Yellow
+    }
+    # WinPE-Add-on: das winget-Paket ist bekannt kaputt (404/'nicht gefunden', winget-pkgs #253458).
+    # Daher direkter Microsoft-Download des adkwinpesetup.exe (passend zu ADK 10.1.26100.2454, Win11 25H2/24H2 x64).
+    Write-Host "  Installiere Windows PE Add-on (direkter Microsoft-Download) ..." -ForegroundColor Cyan
+    $peUrl = 'https://go.microsoft.com/fwlink/?linkid=2289981'
+    $peExe = Join-Path $env:TEMP 'adkwinpesetup.exe'
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor 3072
+        $ProgressPreference = 'SilentlyContinue'
+        Invoke-WebRequest -Uri $peUrl -OutFile $peExe -UseBasicParsing
+        Write-Host "  Starte adkwinpesetup.exe (still) ..." -ForegroundColor Cyan
+        $p = Start-Process -FilePath $peExe -ArgumentList '/quiet','/features','OptionId.WindowsPreinstallationEnvironment','/norestart' -Wait -PassThru
+        if ($p.ExitCode -ne 0) { Write-Host "  adkwinpesetup Exitcode $($p.ExitCode)" -ForegroundColor Yellow }
+    } catch {
+        Write-Host "  WinPE-Add-on-Download/-Install fehlgeschlagen: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
 }
 
 $winpeOc = $null; $oscdimg = $null
@@ -102,7 +119,7 @@ if ($kitsRoot) {
     $oscdimg = Join-Path $kitsRoot ("Assessment and Deployment Kit\Deployment Tools\{0}\Oscdimg\oscdimg.exe" -f $archFolder)
 }
 
-$adkFixHint = 'winget install Microsoft.WindowsADK ; winget install Microsoft.ADKPEAddon  (oder mit -Install; oder https://learn.microsoft.com/windows-hardware/get-started/adk-install )'
+$adkFixHint = 'Dieses Skript mit -Install ausführen (installiert ADK via winget + WinPE-Add-on per direktem MS-Download, da das winget-Add-on-Paket kaputt ist). Manuell: WinPE-Add-on von https://go.microsoft.com/fwlink/?linkid=2289981'
 
 if ($Install -and -not ($winpeOc -and (Test-Path $winpeOc))) { Install-Adk
     # nach Installation Pfade neu bestimmen
