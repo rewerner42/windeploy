@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "profileName": "VM-Test",
+  "profileVersion": "1.0.0",
+
+  "windows": {
+    "edition": "Windows 11 Pro",
+    "imageIndex": 6,
+    "productKey": "VK7JG-NPHTM-C97JM-9MPGT-3V66T"
+  },
+
+  "locale": {
+    "language": "de-DE",
+    "inputLocale": "0407:00000407",
+    "timeZone": "W. Europe Standard Time"
+  },
+
+  "registration": { "owner": "Test", "organization": "Test" },
+
+  "disk": { "minSizeGB": 40, "allowMultipleDisks": false },
+
+  "naming": { "prefix": "TEST-" },
+
+  "localAdmin": {
+    "username": "itadmin",
+    "password": "Test-Passw0rd!",
+    "randomizePassword": false
+  },
+
+  "domainJoin": {
+    "domain": "DEINE-TEST-DOMAENE.local",
+    "ouPath": "OU=Test,DC=deine-test-domaene,DC=local",
+    "username": "DEINE-TEST-DOMAENE\\svc-join"
+  },
+
+  "software": {
+    "msi": [],
+    "choco": [],
+    "winget": [],
+    "rebootIfNeeded": true
+  }
+}

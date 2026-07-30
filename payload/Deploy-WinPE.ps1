@@ -25,13 +25,16 @@ $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'lib\Deploy.Common.psm1') -Force
 
 function Find-InstallImage {
+    # USB nutzt \images\, ISO nutzt \sources\ - beide durchsuchen.
     foreach ($vol in (Get-Volume | Where-Object { $_.DriveLetter })) {
-        foreach ($name in @('install.wim','install.esd','install.swm')) {
-            $p = ('{0}:\images\{1}' -f $vol.DriveLetter, $name)
-            if (Test-Path -LiteralPath $p) { return $p }
+        foreach ($sub in @('images','sources')) {
+            foreach ($name in @('install.wim','install.esd','install.swm')) {
+                $p = ('{0}:\{1}\{2}' -f $vol.DriveLetter, $sub, $name)
+                if (Test-Path -LiteralPath $p) { return $p }
+            }
         }
     }
-    throw "Kein Windows-Abbild (\images\install.wim/.esd) auf den Datenträgern gefunden."
+    throw "Kein Windows-Abbild (\images\ oder \sources\ install.wim/.esd) auf den Datenträgern gefunden."
 }
 
 function Get-DiskNumberForLetter {
