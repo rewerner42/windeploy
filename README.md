@@ -62,7 +62,12 @@ desselben Kunden genutzt. Kein Server (WDS/PXE/Intune) nötig.
 - **Windows ADK** + **Windows PE Add-on** – nur für den USB-Bau (`-BuildMedia`).
   [ADK-Download](https://learn.microsoft.com/windows-hardware/get-started/adk-install)
 - Windows-11-25H2-ISO (gemountet oder entpackt; enthält `sources\boot.wim` und `sources\install.wim`).
+  Kein ISO? Automatisch laden: `.\tools\Get-Win11Iso.ps1` (holt das offizielle ISO direkt von
+  Microsoft, arch-erkennend x64/arm64, via [Fido](https://github.com/pbatard/Fido)).
 - USB-Stick ≥ 16 GB.
+
+**Abhängigkeiten prüfen/installieren:** `.\tools\Preflight.ps1 -Install -IsoPath <Win11.iso>` prüft
+alles (Architektur, ADK, WinPE-Add-on, oscdimg, ISO-Editionen) und installiert Fehlendes per winget.
 
 **Umgebung:**
 - On-Prem Active Directory mit erreichbarem DC am Einsatzort (DHCP + AD-DNS).
