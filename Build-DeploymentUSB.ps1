@@ -22,6 +22,7 @@ param(
     [Parameter(Mandatory)][string]$ProfilePath,
     [string]$OutputPath,
     [switch]$PromptJoinPassword,
+    [System.Security.SecureString]$JoinPassword,   # vom Assistenten direkt durchgereicht
 
     [switch]$BuildMedia,
     [int]$UsbDisk = -1,
@@ -157,7 +158,9 @@ Write-Info "Ausgabe: $OutputPath"
 # 3) Join-Passwort ermitteln + verschlüsseln
 # ---------------------------------------------------------------------------
 $joinPwPlain = $null
-if ($PromptJoinPassword) {
+if ($JoinPassword) {
+    $joinPwPlain = [System.Net.NetworkCredential]::new('', $JoinPassword).Password
+} elseif ($PromptJoinPassword) {
     $sec = Read-Host -AsSecureString "Passwort für Join-Konto '$($prof.domainJoin.username)'"
     $joinPwPlain = [System.Net.NetworkCredential]::new('', $sec).Password
 } elseif (Get-ProfileProp $prof.domainJoin 'password') {

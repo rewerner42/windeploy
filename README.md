@@ -11,6 +11,10 @@ desselben Kunden genutzt. Kein Server (WDS/PXE/Intune) nötig.
 > Reboot-Kette) muss vor dem Produktiveinsatz **in einer VM** durchgespielt werden – siehe
 > [Testen](#testen). Hintergrund & Design-Entscheidungen: **[PLAN.md](PLAN.md)**.
 
+> 🚀 **Schnellster VM-Test (ein Befehl):** `.\tools\Start-WinDeployTest.ps1` — geführter Assistent:
+> prüft/installiert Abhängigkeiten, lädt bei Bedarf das Win11-ISO, fragt alle Eingaben ab, legt auf
+> Wunsch das Join-Konto in AD an, baut die bootfähige Test-ISO und zeigt die Proxmox-Schritte.
+
 ---
 
 ## Inhalt

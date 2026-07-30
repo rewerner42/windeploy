@@ -16,7 +16,8 @@ param(
     [Parameter(Mandatory)][string]$ProfilePath,
     [Parameter(Mandatory)][string]$IsoPath,                                   # Win11-Quell-ISO
     [string]$OutIso  = (Join-Path (Get-Location).Path 'WinDeploy-Test.iso'),
-    [string]$WorkDir = (Join-Path $env:TEMP 'windeploy-build')
+    [string]$WorkDir = (Join-Path $env:TEMP 'windeploy-build'),
+    [System.Security.SecureString]$JoinPassword                               # optional durchgereicht (sonst Abfrage)
 )
 
 $ErrorActionPreference = 'Stop'
@@ -36,8 +37,12 @@ $mediaPath = "$($drv):\"
 try {
     $genOut = Join-Path $WorkDir 'gen'
     if (Test-Path -LiteralPath $genOut) { Remove-Item -LiteralPath $genOut -Recurse -Force }
-    Write-Host "[INFO] Erzeuge Payload/autounattend (Join-Passwort wird abgefragt) ..." -ForegroundColor Cyan
-    & (Join-Path $RepoRoot 'Build-DeploymentUSB.ps1') -ProfilePath $ProfilePath -OutputPath $genOut -PromptJoinPassword
+    Write-Host "[INFO] Erzeuge Payload/autounattend ..." -ForegroundColor Cyan
+    if ($JoinPassword) {
+        & (Join-Path $RepoRoot 'Build-DeploymentUSB.ps1') -ProfilePath $ProfilePath -OutputPath $genOut -JoinPassword $JoinPassword
+    } else {
+        & (Join-Path $RepoRoot 'Build-DeploymentUSB.ps1') -ProfilePath $ProfilePath -OutputPath $genOut -PromptJoinPassword
+    }
     if (-not (Test-Path -LiteralPath (Join-Path $genOut 'autounattend.xml'))) { throw "Generator lieferte keine autounattend.xml." }
 
     . (Join-Path $RepoRoot 'lib\Build-Iso.ps1')
