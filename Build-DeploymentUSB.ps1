@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <#
 .SYNOPSIS
     WinDeploy-Generator: erzeugt aus einem Kundenprofil eine XML-sichere autounattend.xml,
@@ -6,7 +6,7 @@
     daraus ein bootfähiger USB-Stick gebaut (benötigt Windows ADK + WinPE-Add-on).
 
 .EXAMPLE
-    # Nur Payload/Antwortdatei erzeugen (kein USB) — schnell testbar:
+    # Nur Payload/Antwortdatei erzeugen (kein USB) - schnell testbar:
     .\Build-DeploymentUSB.ps1 -ProfilePath .\profiles\kunde-example.json -PromptJoinPassword
 
 .EXAMPLE
@@ -98,7 +98,7 @@ function Test-ProfileSemantics {
         if ($prefix -notmatch '^[A-Za-z0-9-]+$') { $errs += "naming.prefix enthält ungültige Zeichen." }
         if ($prefix.Length -gt 12) { $errs += "naming.prefix ist zu lang (max 12; NetBIOS-Budget = 15)." }
         elseif ($prefix.Length -ge 14) { $errs += "naming.prefix lässt keinen Platz für die Seriennummer." }
-        if ($prefix.Length -gt 10) { Write-Warn2 "naming.prefix ist lang ($($prefix.Length)) — wenig Platz für eindeutigen Serienteil (15-Zeichen-Grenze)." }
+        if ($prefix.Length -gt 10) { Write-Warn2 "naming.prefix ist lang ($($prefix.Length)) - wenig Platz für eindeutigen Serienteil (15-Zeichen-Grenze)." }
     }
 
     $pk        = [string](Get-ProfileProp $P.windows 'productKey')
@@ -118,7 +118,7 @@ function Test-ProfileSemantics {
     if (-not (Get-ProfileProp $P.localAdmin 'password')) { $errs += "localAdmin.password fehlt." }
     if (-not (Get-ProfileProp $P.domainJoin 'domain'))   { $errs += "domainJoin.domain fehlt." }
     if ($joinUser.Length -eq 0) { $errs += "domainJoin.username fehlt (delegiertes Join-Konto)." }
-    elseif ($joinUser -match '(?i)administrator$') { Write-Warn2 "domainJoin.username sieht nach Admin-Konto aus — bitte delegiertes, minimal berechtigtes Konto verwenden!" }
+    elseif ($joinUser -match '(?i)administrator$') { Write-Warn2 "domainJoin.username sieht nach Admin-Konto aus - bitte delegiertes, minimal berechtigtes Konto verwenden!" }
 
     if ($errs.Count) { Fail ("Profil ungültig:`n - " + ($errs -join "`n - ")) }
     Write-Ok "Profil semantisch validiert."
@@ -172,7 +172,7 @@ if ([string]::IsNullOrEmpty($joinPwPlain)) { Fail "Kein Join-Passwort angegeben.
 $keyPath = Join-Path $configDir 'secret.key'
 $joinCipher = Protect-Secret -Plain $joinPwPlain -KeyPath $keyPath
 $joinPwPlain = $null
-Write-Ok "Join-Passwort verschlüsselt (AES). Hinweis: Schlüssel liegt neben der Chiffre — reale Sicherheit = physische Sicherung + Konto-Rotation (PLAN.md §5.4)."
+Write-Ok "Join-Passwort verschlüsselt (AES). Hinweis: Schlüssel liegt neben der Chiffre - reale Sicherheit = physische Sicherung + Konto-Rotation (PLAN.md §5.4)."
 
 # ---------------------------------------------------------------------------
 # 4) autounattend.xml XML-sicher rendern (§5.2)
@@ -211,7 +211,7 @@ if ($AdkXsd) {
     } else { Write-Warn2 "AdkXsd nicht gefunden: $AdkXsd" }
 }
 
-# Build-Metadaten als Kommentar einfügen — index-basiert, ohne -replace-Backref-Parsing,
+# Build-Metadaten als Kommentar einfügen - index-basiert, ohne -replace-Backref-Parsing,
 # Kommentar-Inhalt entschärft ('--' und <>), danach ERNEUT wohlgeformt-Prüfung (Review-Fund #2).
 $stamp = (Get-Date).ToUniversalTime().ToString('u')
 $cn = ((([string]$prof.profileName)    -replace '-{2,}','-') -replace '[<>]','')
@@ -221,7 +221,7 @@ $m = [regex]::Match($rendered, '<unattend[^>]*>')
 if ($m.Success) { $rendered = $rendered.Insert($m.Index + $m.Length, "`r`n  " + $metaComment) }
 try { $null = [xml]$rendered } catch { Fail "autounattend.xml nach Metadaten-Kommentar nicht mehr wohlgeformt: $($_.Exception.Message)" }
 
-# Nur an den USB-Root schreiben. NICHT in deployDir — autounattend.xml trägt das lokale
+# Nur an den USB-Root schreiben. NICHT in deployDir - autounattend.xml trägt das lokale
 # Admin-Passwort im Klartext und darf nicht als C:\Deploy\autounattend.xml landen (Review-Fund #8).
 $answerOut = Join-Path $OutputPath 'autounattend.xml'
 Set-Content -LiteralPath $answerOut -Value $rendered -Encoding UTF8

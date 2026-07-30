@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <#  Schritt 2: Software (§5.7 / §7).
     Baseline garantiert: MSI (offline, C:\Deploy\software) + Chocolatey.
     Optional: winget (readiness-gated, --scope machine).
@@ -61,7 +61,7 @@ function Install-SoftwareStep {
                     $results += [pscustomobject]@{ engine='msi'; name=$name; ok=$false; code=$code }
                 }
             } catch {
-                Write-DeployLog "MSI FEHLER: $name — $($_.Exception.Message)" -Level ERROR -Component sw
+                Write-DeployLog "MSI FEHLER: $name - $($_.Exception.Message)" -Level ERROR -Component sw
                 $results += [pscustomobject]@{ engine='msi'; name=$name; ok=$false; code=$null }
             }
         }
@@ -98,7 +98,7 @@ function Install-SoftwareStep {
                     $results += [pscustomobject]@{ engine='choco'; name=$name; ok=$false; code=$code }
                 }
             } catch {
-                Write-DeployLog "choco FEHLER: $name — $($_.Exception.Message)" -Level ERROR -Component sw
+                Write-DeployLog "choco FEHLER: $name - $($_.Exception.Message)" -Level ERROR -Component sw
                 $results += [pscustomobject]@{ engine='choco'; name=$name; ok=$false; code=$null }
             }
         }
@@ -117,16 +117,16 @@ function Install-SoftwareStep {
                         Write-DeployLog "winget OK: $name ($id)" -Level OK -Component sw
                         $results += [pscustomobject]@{ engine='winget'; name=$name; ok=$true; code=$code }
                     } else {
-                        Write-DeployLog "winget PROBLEM: $name ($id, Exit $code) — übersprungen." -Level WARN -Component sw
+                        Write-DeployLog "winget PROBLEM: $name ($id, Exit $code) - übersprungen." -Level WARN -Component sw
                         $results += [pscustomobject]@{ engine='winget'; name=$name; ok=$false; code=$code }
                     }
                 } catch {
-                    Write-DeployLog "winget FEHLER: $name — $($_.Exception.Message)" -Level WARN -Component sw
+                    Write-DeployLog "winget FEHLER: $name - $($_.Exception.Message)" -Level WARN -Component sw
                     $results += [pscustomobject]@{ engine='winget'; name=$name; ok=$false; code=$null }
                 }
             }
         } else {
-            Write-DeployLog "winget wurde nicht rechtzeitig verfügbar — winget-Pakete übersprungen (MSI/Choco-Baseline bleibt gültig)." -Level WARN -Component sw
+            Write-DeployLog "winget wurde nicht rechtzeitig verfügbar - winget-Pakete übersprungen (MSI/Choco-Baseline bleibt gültig)." -Level WARN -Component sw
         }
     }
 

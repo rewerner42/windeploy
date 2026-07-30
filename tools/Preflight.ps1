@@ -1,8 +1,8 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <#
 .SYNOPSIS
     WinDeploy-Preflight: prüft (und installiert optional) alle Abhängigkeiten, die zum
-    Bauen und Testen von WinDeploy nötig sind — auf dem Windows-Build-/Testrechner.
+    Bauen und Testen von WinDeploy nötig sind - auf dem Windows-Build-/Testrechner.
 
 .DESCRIPTION
     Prüft: Windows-Edition, PowerShell, Adminrechte, CPU-Architektur, Windows ADK +
@@ -20,7 +20,7 @@
     powershell -ExecutionPolicy Bypass -File .\tools\Preflight.ps1 -Install -IsoPath D:\Win11_25H2.iso
 
 .NOTES
-    WICHTIG: WinDeploy zielt auf amd64. Auf Apple-Silicon-Parallels läuft nur ARM64-Windows —
+    WICHTIG: WinDeploy zielt auf amd64. Auf Apple-Silicon-Parallels läuft nur ARM64-Windows -
     dann validiert ein VM-Test nur eine ARM64-Variante, nicht die amd64-Zielplattform.
 #>
 [CmdletBinding()]
@@ -67,7 +67,7 @@ else { Add-Check 'Adminrechte' 'FAIL' 'keine Adminrechte' 'PowerShell "Als Admin
 # --- 4) CPU-Architektur ---
 $arch = $env:PROCESSOR_ARCHITECTURE
 if ($arch -eq 'AMD64') {
-    Add-Check 'Architektur' 'OK' 'AMD64 (x86-64) — passt zum WinDeploy-Ziel'
+    Add-Check 'Architektur' 'OK' 'AMD64 (x86-64) - passt zum WinDeploy-Ziel'
 } elseif ($arch -eq 'ARM64') {
     Add-Check 'Architektur' 'WARN' 'ARM64 (Apple-Silicon-Parallels?)' 'WinDeploy zielt auf amd64. Ein Test hier validiert nur eine ARM64-Variante, nicht deine amd64-Zielgeräte.'
 } else {
@@ -88,8 +88,8 @@ foreach ($p in @('HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows Kits\Installed Ro
 }
 
 function Install-Adk {
-    if (-not $winget) { Write-Host "  winget fehlt — ADK bitte manuell installieren." -ForegroundColor Yellow; return }
-    if (-not $isAdmin) { Write-Host "  Adminrechte fehlen — Installation übersprungen." -ForegroundColor Yellow; return }
+    if (-not $winget) { Write-Host "  winget fehlt - ADK bitte manuell installieren." -ForegroundColor Yellow; return }
+    if (-not $isAdmin) { Write-Host "  Adminrechte fehlen - Installation übersprungen." -ForegroundColor Yellow; return }
     Write-Host "  Installiere Windows ADK ..." -ForegroundColor Cyan
     & winget install --id Microsoft.WindowsADK -e --accept-source-agreements --accept-package-agreements --disable-interactivity
     Write-Host "  Installiere Windows PE Add-on ..." -ForegroundColor Cyan
@@ -128,7 +128,7 @@ if ($winpeOc -and (Test-Path $winpeOc)) {
 }
 
 if ($oscdimg -and (Test-Path $oscdimg)) { Add-Check 'oscdimg (ISO-Bau)' 'OK' $oscdimg }
-else { Add-Check 'oscdimg (ISO-Bau)' 'WARN' 'nicht gefunden (Teil der ADK Deployment Tools)' 'Wird für den ISO-Bau gebraucht — kommt mit dem ADK.' }
+else { Add-Check 'oscdimg (ISO-Bau)' 'WARN' 'nicht gefunden (Teil der ADK Deployment Tools)' 'Wird für den ISO-Bau gebraucht - kommt mit dem ADK.' }
 
 # --- 7) Windows-11-Abbild ---
 function Get-ImageInfoSafe {
@@ -187,7 +187,7 @@ if ($fails.Count -eq 0) {
     Write-Host "BEREIT zum Bauen." -ForegroundColor Green
     Write-Host "Nächster Schritt: .\Build-DeploymentUSB.ps1 -ProfilePath .\profiles\<deins>.json -PromptJoinPassword -BuildMedia ..." -ForegroundColor Green
 } else {
-    Write-Host ("NICHT bereit — {0} kritische Punkte offen:" -f $fails.Count) -ForegroundColor Red
+    Write-Host ("NICHT bereit - {0} kritische Punkte offen:" -f $fails.Count) -ForegroundColor Red
     $fails | ForEach-Object { Write-Host ("  - {0}: {1}" -f $_.Name, $_.Detail) -ForegroundColor Red }
     Write-Host "Tipp: dieses Skript mit -Install erneut ausführen, um ADK/WinPE-Add-on automatisch zu installieren." -ForegroundColor Yellow
 }

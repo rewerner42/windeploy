@@ -1,6 +1,6 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <#
-    Invoke-Deploy.ps1 — Orchestrator (läuft im ersten Admin-Logon des installierten Windows).
+    Invoke-Deploy.ps1 - Orchestrator (läuft im ersten Admin-Logon des installierten Windows).
     Reboot-feste State-Machine:  Rename -> Software -> Domänenbeitritt -> Cleanup.
     Erststart via FirstLogonCommands; Fortsetzung nach jedem Reboot via geplanten Task
     'WinDeploy-Resume' (läuft interaktiv als lokaler Admin -> winget-Kontext vorhanden, §5.7).
@@ -25,7 +25,7 @@ function Invoke-Step {
         [Parameter(Mandatory)][scriptblock]$Body
     )
     if (Test-DeployStepDone -State $State -Step $Name) {
-        Write-DeployLog "Schritt '$Name' bereits erledigt — überspringe." -Component orch
+        Write-DeployLog "Schritt '$Name' bereits erledigt - überspringe." -Component orch
         return $State
     }
     Write-DeployLog "--- Schritt '$Name' startet ---" -Component orch
@@ -58,7 +58,7 @@ try {
         return
     }
 
-    # 2) Software (MSI/Choco-Baseline + optional winget) — VOR dem Join (§5.7)
+    # 2) Software (MSI/Choco-Baseline + optional winget) - VOR dem Join (§5.7)
     if (-not (Test-DeployStepDone -State $state -Step 'software')) {
         $state = Invoke-Step -State $state -Name 'software' -Body { param($s) Install-SoftwareStep -State $s -Config $cfg }
         if ($script:DeployRebootRequested) {
@@ -78,7 +78,7 @@ try {
         return
     }
 
-    # 4) Cleanup (läuft IMMER als letztes — auch Credential-/Auto-Logon-Scrub)
+    # 4) Cleanup (läuft IMMER als letztes - auch Credential-/Auto-Logon-Scrub)
     if (-not (Test-DeployStepDone -State $state -Step 'cleanup')) {
         $state = Invoke-Step -State $state -Name 'cleanup' -Body { param($s) Invoke-CleanupStep -State $s -Config $cfg }
     }

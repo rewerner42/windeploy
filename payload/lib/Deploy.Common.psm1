@@ -1,6 +1,6 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <#
-    Deploy.Common.psm1 — gemeinsame Hilfsfunktionen für WinDeploy
+    Deploy.Common.psm1 - gemeinsame Hilfsfunktionen für WinDeploy
     Läuft in zwei Kontexten:
       1. WinPE (Windows PowerShell 5.1, via WinPE-PowerShell-Komponente)  -> Deploy-WinPE.ps1
       2. Erstes Admin-Logon des installierten Windows                      -> Invoke-Deploy.ps1
@@ -213,7 +213,7 @@ function New-DeployRandomSuffix {
 }
 
 # ---------------------------------------------------------------------------
-# Fail-safe Ziel-Datenträger-Auswahl  (§5.1 — die wichtigste Sicherheitsfunktion)
+# Fail-safe Ziel-Datenträger-Auswahl  (§5.1 - die wichtigste Sicherheitsfunktion)
 # Läuft in WinPE.  Bricht bewusst ab, statt den falschen Datenträger zu löschen.
 # ---------------------------------------------------------------------------
 function Get-TargetInternalDisk {
@@ -232,7 +232,7 @@ function Get-TargetInternalDisk {
             $d.Number, $d.BusType, [math]::Round($d.Size/1GB,0), $d.FriendlyName, $d.IsBoot, $d.IsSystem) -Component disk
     }
 
-    # IsBoot ist in WinPE kein zuverlässiger Indikator für das USB-Medium — daher wird der
+    # IsBoot ist in WinPE kein zuverlässiger Indikator für das USB-Medium - daher wird der
     # Datenträger von Medium + Abbild explizit per Disk-Nummer ausgeschlossen (aus Deploy-WinPE).
     $candidates = @($all | Where-Object {
         ($excludedBus -notcontains [string]$_.BusType) -and
@@ -241,14 +241,14 @@ function Get-TargetInternalDisk {
     })
 
     if ($candidates.Count -eq 0) {
-        throw "Kein interner Ziel-Datenträger gefunden (>= $MinSizeGB GB, Bus != USB). ABBRUCH — es wird nichts gelöscht."
+        throw "Kein interner Ziel-Datenträger gefunden (>= $MinSizeGB GB, Bus != USB). ABBRUCH - es wird nichts gelöscht."
     }
     if ($candidates.Count -gt 1) {
         $list = ($candidates | ForEach-Object { "Disk $($_.Number) ($($_.BusType), $([math]::Round($_.Size/1GB,0))GB, '$($_.FriendlyName)')" }) -join '; '
         if (-not $AllowMultiple) {
-            throw "Mehrere interne Datenträger gefunden [$list]. ABBRUCH zur Sicherheit — es wird nichts gelöscht. (Profil-Flag allowMultipleDisks setzen, um die größte zu wählen.)"
+            throw "Mehrere interne Datenträger gefunden [$list]. ABBRUCH zur Sicherheit - es wird nichts gelöscht. (Profil-Flag allowMultipleDisks setzen, um die größte zu wählen.)"
         }
-        Write-DeployLog "WARNUNG: mehrere interne Datenträger [$list] — allowMultipleDisks aktiv, wähle die größte." -Level WARN -Component disk
+        Write-DeployLog "WARNUNG: mehrere interne Datenträger [$list] - allowMultipleDisks aktiv, wähle die größte." -Level WARN -Component disk
         return ($candidates | Sort-Object Size -Descending | Select-Object -First 1)
     }
     $target = $candidates[0]
@@ -315,7 +315,7 @@ function Unprotect-DeploySecret {
 }
 
 # ---------------------------------------------------------------------------
-# Safe-Scrub — entfernt Auto-Logon + Secrets. MUSS auch auf dem Fehlerpfad laufen
+# Safe-Scrub - entfernt Auto-Logon + Secrets. MUSS auch auf dem Fehlerpfad laufen
 # (§5.8), damit ein abgebrochener Deploy keine Credentials zurücklässt.
 # Best-effort: jeder Schritt einzeln gekapselt, wirft nie.
 # ---------------------------------------------------------------------------
@@ -342,7 +342,7 @@ function Invoke-DeploySafeScrub {
 }
 
 # ---------------------------------------------------------------------------
-# Idempotenz-Marker — verhindert, dass ein erneuter USB-Boot die frisch
+# Idempotenz-Marker - verhindert, dass ein erneuter USB-Boot die frisch
 # installierte Platte wieder löscht (§ Review-Fund #7).
 # ---------------------------------------------------------------------------
 function Write-DeployAppliedMarker {

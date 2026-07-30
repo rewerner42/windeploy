@@ -1,5 +1,5 @@
-#requires -Version 5.1
-<#  Schritt 4: Cleanup (§5.8) — läuft IMMER als letztes.
+﻿#requires -Version 5.1
+<#  Schritt 4: Cleanup (§5.8) - läuft IMMER als letztes.
     WICHTIG (Review-Fund #12/#14): Secrets werden ZUERST und unabänderlich entfernt
     (Invoke-DeploySafeScrub), bevor irgendein Schritt fehlschlagen könnte. Erst danach
     folgen die best-effort-Aufräumarbeiten (Antwortdatei-Reste, Reporting, Task, Payload).  #>
@@ -67,7 +67,7 @@ function Invoke-CleanupStep {
         } catch { Write-DeployLog "Share-Report übersprungen: $($_.Exception.Message)" -Level WARN -Component cleanup }
     }
 
-    # 4) Fortsetzungs-Task entfernen (best-effort — darf Cleanup NICHT abbrechen)
+    # 4) Fortsetzungs-Task entfernen (best-effort - darf Cleanup NICHT abbrechen)
     try { Unregister-DeployResumeTask } catch { Write-DeployLog "Task-Entfernung: $($_.Exception.Message)" -Level WARN -Component cleanup }
 
     # 5) Rest-Payload verzögert löschen (dieser Prozess läuft noch daraus)

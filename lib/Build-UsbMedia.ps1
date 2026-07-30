@@ -1,6 +1,6 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <#
-    Build-UsbMedia.ps1 — baut aus dem Generator-Output einen bootfähigen WinDeploy-USB.
+    Build-UsbMedia.ps1 - baut aus dem Generator-Output einen bootfähigen WinDeploy-USB.
     Läuft auf dem Techniker-Windows und benötigt das Windows ADK inkl. WinPE-Add-on
     (für die WinPE-PowerShell-Komponente, damit Deploy-WinPE.ps1 in WinPE laufen kann).
 
@@ -58,7 +58,7 @@ function Invoke-BuildUsbMedia {
     $sizeGB = [math]::Round($disk.Size/1GB, 0)
     if ($disk.BusType -ne 'USB') { throw "Disk $UsbDisk ist BusType '$($disk.BusType)', kein USB. ABBRUCH." }
     if ($disk.IsBoot -or $disk.IsSystem) { throw "Disk $UsbDisk ist Boot/System-Datenträger. ABBRUCH." }
-    if ($sizeGB -gt 512) { throw "Disk $UsbDisk ist $sizeGB GB (> 512) — untypisch für einen USB-Stick. ABBRUCH zur Sicherheit." }
+    if ($sizeGB -gt 512) { throw "Disk $UsbDisk ist $sizeGB GB (> 512) - untypisch für einen USB-Stick. ABBRUCH zur Sicherheit." }
 
     $target = "USB-Disk $UsbDisk ($($disk.FriendlyName), $sizeGB GB)"
     if (-not $PSCmdlet.ShouldProcess($target, "ALLE DATEN LÖSCHEN und WinDeploy-USB bauen")) {
@@ -149,5 +149,5 @@ function Invoke-BuildUsbMedia {
     try { Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue } catch { }
 
     Write-Host "[ OK ] WinDeploy-USB fertig auf Disk $UsbDisk. Vom Ziel-PC (UEFI) booten." -ForegroundColor Green
-    Write-Host "       Erinnerung: USB enthält Credentials — physisch sichern." -ForegroundColor Yellow
+    Write-Host "       Erinnerung: USB enthält Credentials - physisch sichern." -ForegroundColor Yellow
 }

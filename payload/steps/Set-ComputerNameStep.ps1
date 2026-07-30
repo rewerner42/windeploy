@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <#  Schritt 1: Computername aus BIOS-Seriennummer bilden und setzen (§5.9).  #>
 
 function Set-ComputerNameStep {
@@ -27,7 +27,7 @@ function Set-ComputerNameStep {
     Write-DeployLog "Neuer Computername: $name" -Level OK -Component name
 
     if ($env:COMPUTERNAME -eq $name) {
-        Write-DeployLog "Computername ist bereits '$name' — nichts zu tun." -Component name
+        Write-DeployLog "Computername ist bereits '$name' - nichts zu tun." -Component name
     } else {
         Rename-Computer -NewName $name -Force -ErrorAction Stop
     }

@@ -1,9 +1,9 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <#
-    Deploy-WinPE.ps1 — läuft in WinPE (via WinPE-PowerShell-Komponente).
+    Deploy-WinPE.ps1 - läuft in WinPE (via WinPE-PowerShell-Komponente).
 
     PRIMÄRER Start: winpeshl.ini/startnet in der boot.wim ruft dieses Skript direkt auf
-    (siehe lib/Build-UsbMedia.ps1) — unabhängig von der 24H2/25H2-Setup-Engine.
+    (siehe lib/Build-UsbMedia.ps1) - unabhängig von der 24H2/25H2-Setup-Engine.
     FALLBACK: autounattend.xml windowsPE RunSynchronous (falls doch über setup.exe gebootet).
 
     Verantwortlich für den sicherheitskritischen Teil (§5.1):
@@ -63,7 +63,7 @@ try {
 
     # Idempotenz: bereits deployt? -> nicht erneut löschen (Review-Fund #7)
     if (Test-DeployAlreadyApplied) {
-        Write-DeployLog "WinDeploy-Marker gefunden — diese Platte ist bereits installiert. KEIN erneuter Wipe." -Level WARN -Component winpe
+        Write-DeployLog "WinDeploy-Marker gefunden - diese Platte ist bereits installiert. KEIN erneuter Wipe." -Level WARN -Component winpe
         Write-DeployLog "Setze Firmware-Start auf Windows und starte neu. (Falls Schleife: USB entfernen.)" -Component winpe
         Set-FirmwareBootToWindows
         Start-Sleep -Seconds 5
@@ -155,7 +155,7 @@ try {
     if ($cfg.PSObject.Properties['buildUtc']) { $buildUtc = [string]$cfg.buildUtc }
     Write-DeployAppliedMarker -WindowsDrive 'W:' -BuildUtc $buildUtc
 
-    Write-DeployLog "=== WinPE-Phase fertig — Neustart in das installierte Windows ===" -Level OK -Component winpe
+    Write-DeployLog "=== WinPE-Phase fertig - Neustart in das installierte Windows ===" -Level OK -Component winpe
     Start-Sleep -Seconds 3
     & "$env:SystemRoot\System32\wpeutil.exe" reboot
 }
@@ -164,7 +164,7 @@ catch {
     Write-DeployLog $_.ScriptStackTrace -Level ERROR -Component winpe
     Write-Host ""
     Write-Host "  ############################################################" -ForegroundColor Red
-    Write-Host "  #  WINDEPLOY ABGEBROCHEN — kein Datenträger wurde verändert #" -ForegroundColor Red
+    Write-Host "  #  WINDEPLOY ABGEBROCHEN - kein Datenträger wurde verändert #" -ForegroundColor Red
     Write-Host "  #  $($_.Exception.Message)" -ForegroundColor Red
     Write-Host "  ############################################################" -ForegroundColor Red
     Write-Host ""

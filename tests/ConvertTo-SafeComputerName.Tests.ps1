@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <#  Pester-Tests für ConvertTo-SafeComputerName (§5.9).
     Ausführen:  Invoke-Pester .\tests\ConvertTo-SafeComputerName.Tests.ps1  #>
 

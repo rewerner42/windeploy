@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <#  Schritt 3: Domänenbeitritt mit Readiness-Gate (§5.5 / §5.10).
     - Netzwerk/DHCP abwarten
     - Zeit gegen DC synchronisieren (Kerberos-Skew)
@@ -47,11 +47,11 @@ function Join-DomainStep {
     # Bereits Mitglied?
     $cs = Get-CimInstance -ClassName Win32_ComputerSystem
     if ($cs.PartOfDomain -and $cs.Domain -eq $domain) {
-        Write-DeployLog "Bereits Mitglied von '$domain' — überspringe Beitritt." -Level OK -Component join
+        Write-DeployLog "Bereits Mitglied von '$domain' - überspringe Beitritt." -Level OK -Component join
         return
     }
 
-    if (-not (Wait-DeployNetwork -TimeoutSec 300)) { throw "Kein Netzwerk/Gateway innerhalb des Timeouts — Beitritt nicht möglich." }
+    if (-not (Wait-DeployNetwork -TimeoutSec 300)) { throw "Kein Netzwerk/Gateway innerhalb des Timeouts - Beitritt nicht möglich." }
 
     # Zeit synchronisieren (Kerberos toleriert max. 5 min Skew)
     try { & w32tm /resync /force 2>&1 | Out-Null } catch { }
@@ -61,7 +61,7 @@ function Join-DomainStep {
         Write-DeployLog "DNS-SRV für '$domain' nicht auflösbar (evtl. Nicht-AD-DNS via DHCP). Versuche Beitritt trotzdem." -Level WARN -Component join
     }
 
-    # Anmeldedaten (eingebettet, AES-obfuskiert — realer Schutz = physische Sicherung, §5.4)
+    # Anmeldedaten (eingebettet, AES-obfuskiert - realer Schutz = physische Sicherung, §5.4)
     $keyPath = Join-Path (Get-DeployRoot) 'config\secret.key'
     $pwPlain = Unprotect-DeploySecret -CipherBase64 $dj.passwordCipher -KeyPath $keyPath
     $secure  = ConvertTo-SecureString $pwPlain -AsPlainText -Force
